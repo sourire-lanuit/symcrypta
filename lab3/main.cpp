@@ -7,26 +7,45 @@
 #include <cmath>
 #include <windows.h>
 
-const std::string alph1 = "абвгдежзийклмнопрстуфхцчшщыьэюя";
-const std::string alph2 = "абвгдежзийклмнопрстуфхцчшщьыэюя"; 
+const std::wstring alph1 = L"абвгдежзийклмнопрстуфхцчшщыьэюя";
+const std::wstring alph2 = L"абвгдежзийклмнопрстуфхцчшщьыэюя"; 
 const int M = 31;
 const int M2 = 31 * 31; 
-const std::vector<std::string> rusoriz = {"ст", "но", "то", "на", "ен"};
+const std::vector<std::wstring> rusoriz = {L"ст", L"но", L"то", L"на", L"ен"};
 
-std::string read_file(const std::string& filename) {
-    std::ifstream file(filename, std::ios::binary);
-    if (!file) std::cerr << "file ne vidkryvsya\n";
-
-    std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-    return text;
+std::wstring utf8_to_wstring(const std::string& str) {
+    if (str.empty()) return std::wstring();
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
+    std::wstring wstrTo(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
 }
 
-int char_to_idx(char c, const std::string& alph) {
+std::string wstring_to_utf8(const std::wstring& wstr) {
+    if (wstr.empty()) return std::string();
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
+    std::string strTo(size_needed, 0);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &strTo[0], size_needed, NULL, NULL);
+    return strTo;
+}
+
+std::wstring read_file(const std::string& filename) {
+    std::ifstream file(filename, std::ios::binary);
+    if (!file) {
+        std::cerr << "Не відкриваєцця\n";
+        exit(1);
+    }
+    std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    text.erase(remove(text.begin(), text.end(), '\n'), text.end());
+    text.erase(remove(text.begin(), text.end(), '\r'), text.end());
+    return utf8_to_wstring(text);
+}
+
+int char_to_idx(wchar_t c, const std::wstring& alph) {
     return alph.find(c);
 }
 
-char idx_to_char(int idx, const std::string& alph) {
+wchar_t idx_to_char(int idx, const std::wstring& alph) {
     return alph[idx];
 }
 
@@ -70,13 +89,13 @@ std::vector<int> solve_congr(int a, int b, int m) {
     return sol;
 }
 
-std::vector<std::pair<std::string, int>> noperetyn_bigrams(const std::string& text, int top_n) {
-    std::unordered_map<std::string, int> freq;
+std::vector<std::pair<std::wstring, int>> noperetyn_bigrams(const std::wstring& text, int top_n) {
+    std::unordered_map<std::wstring, int> freq;
     for (size_t i = 0; i + 1 < text.size(); i += 2) {
         freq[text.substr(i, 2)]++;
     }
     
-    std::vector<std::pair<std::string, int>> sorted_freq(freq.begin(), freq.end());
+    std::vector<std::pair<std::wstring, int>> sorted_freq(freq.begin(), freq.end());
     sort(sorted_freq.begin(), sorted_freq.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
@@ -85,19 +104,21 @@ std::vector<std::pair<std::string, int>> noperetyn_bigrams(const std::string& te
     return sorted_freq;
 }
 
-int bigram_to_int(const std::string& b, const std::string& alph) {
+int bigram_to_int(const std::wstring& b, const std::wstring& alph) {
     int x1 = char_to_idx(b[0], alph);
     int x2 = char_to_idx(b[1], alph);
+    if (x1 == -1 || x2 == -1) return -1;
     return x1 * M + x2;
 }
 
-std::string decrypt(const std::string& text, int a, int b_key, const std::string& alph) {
-    std::string decrypted = "";
+std::wstring decrypt(const std::wstring& text, int a, int b_key, const std::wstring& alph) {
+    std::wstring decrypted = L"";
     int a_inv = mod_inverse(a, M2);
-    if (a_inv == -1) return "";
+    if (a_inv == -1) return L"";
 
     for (size_t i = 0; i + 1 < text.size(); i += 2) {
         int y = bigram_to_int(text.substr(i, 2), alph);
+        if (y == -1) continue;
         int x = (1LL * a_inv * (y - b_key % M2 + M2)) % M2;
         decrypted += idx_to_char(x / M, alph);
         decrypted += idx_to_char(x % M, alph);
@@ -105,23 +126,36 @@ std::string decrypt(const std::string& text, int a, int b_key, const std::string
     return decrypted;
 }
 
-bool is_valid(const std::string& text) {
+bool is_valid(const std::wstring& text) {
+    if (text.empty()) return false;
+    
     int good_chars = 0;
-    std::string popular = "оеаинтсрвл"; 
-    for (char c : text) {
-        if (popular.find(c) != std::string::npos) good_chars++;
+    std::wstring popular = L"оеаинтсрвл"; 
+    
+    for (size_t i = 0; i < text.size(); i++) {
+        if (popular.find(text[i]) != std::wstring::npos) good_chars++;
+        if (i >= 2 && text[i] == text[i-1] && text[i] == text[i-2]) {
+            return false; 
+        }
     }
 
-    return (double)good_chars / text.size() > 0.60;
+    std::vector<std::wstring> forbidden = {L"аь", L"еь", L"иь", L"оь", L"уь", L"ыь", L"эь", L"юь", L"яь", L"ьь", L"йь", L"ъь"};
+    for (const auto& fb : forbidden) {
+        if (text.find(fb) != std::wstring::npos) return false;
+    }
+
+    return (double)good_chars / text.size() > 0.55;
 }
 
-void attack_cipher(const std::string& ciphertext, const std::string& alph, const std::string& alph_name) {
-    std::cout << "\nAtack using alphabet: " << alph_name << std::endl;
+void attack_cipher(const std::wstring& ciphertext, const std::wstring& alph, const std::string& alph_name) {
+    std::cout << "\nАтака з використанням алфавіту: " << alph_name << std::endl;
     
     auto top_bigrams = noperetyn_bigrams(ciphertext, 5);
     
-    std::cout << "Top 5 bigrams in the ciphertext: \n";
-    for (auto& p : top_bigrams) std::cout << p.first << " (" << p.second << ")\n";
+    std::cout << "Топ-5 біграм шифротексту:\n";
+    for (auto& p : top_bigrams) {
+        std::cout << wstring_to_utf8(p.first) << " (" << p.second << ")\n";
+    }
 
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < 5; j++) {
@@ -146,29 +180,33 @@ void attack_cipher(const std::string& ciphertext, const std::string& alph, const
                         int b = (y1 - 1LL * a * x1) % M2;
                         b = (b + M2) % M2;
 
-                        std::string decrypted = decrypt(ciphertext.substr(0, 500), a, b, alph);
-                        
+                        std::wstring decrypted = decrypt(ciphertext.substr(0, 500), a, b, alph);
                         if (!decrypted.empty() && is_valid(decrypted)) {
-                            std::cout << "\nPossible key found\n";
-                            std::cout << "Key (a, b): (" << a << ", " << b << ")\n";
-                            std::cout << "Finding similiarity: " << rusoriz[i] << " to " << top_bigrams[k].first  << ", " << rusoriz[j] << " to " << top_bigrams[l].first << "\n";
-                            std::cout << "Text fragment: " << decrypted.substr(0, 150) << std::endl;
+                            std::cout << "\nКлюч найшли\n";
+                            std::cout << "Ключ (a, b): (" << a << ", " << b << ")\n";
+                            std::cout << "Співставлення: " << wstring_to_utf8(rusoriz[i]) << "  to " << wstring_to_utf8(top_bigrams[k].first)  << ", " << wstring_to_utf8(rusoriz[j]) << " to " << wstring_to_utf8(top_bigrams[l].first) << "\n";
+                            
+                            std::wstring full_text = decrypt(ciphertext, a, b, alph);
+                            std::cout << "\nДешифрований текст:\n" << wstring_to_utf8(full_text.substr(0, 500)) << std::endl;
+                
+                            return; 
                         }
                     }
                 }
             }
         }
     }
+    std::cout << "\nКлюч не знайдено для цього алфавіту.\n";
 }
 
 int main() {
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
-    std::string ciphertext = read_file("04.txt");
-    ciphertext.erase(remove(ciphertext.begin(), ciphertext.end(), '\n'), ciphertext.end());
-    ciphertext.erase(remove(ciphertext.begin(), ciphertext.end(), '\r'), ciphertext.end());
-    attack_cipher(ciphertext, alph1, "Var 1");
-    attack_cipher(ciphertext, alph2, "Var 2");
+    
+    std::wstring ciphertext = read_file("04.txt");
+    
+    attack_cipher(ciphertext, alph1, "Варіант 1");
+    attack_cipher(ciphertext, alph2, "Варіант 2");
 
     return 0;
 }
