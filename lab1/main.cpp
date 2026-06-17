@@ -8,7 +8,6 @@
 #include <iomanip>
 
 const std::string alph_space =  " אבגדהוזחטיךכלםמןנסעףפץצקרשתûü‎‏ÿ";
-
 const std::string alph_nospace =  "אבגדהוזחטיךכלםמןנסעףפץצקרשתûü‎‏ÿ";
 
 bool contains_char(char c, const std::string& alphabet) {
@@ -182,7 +181,7 @@ void print_probabilities_to_file(const std::unordered_map<std::string, long long
 }
 
 int main() {
-    std::string orig_text = read_file("text.txt");
+    std::string orig_text = read_file("text_potok_mysli_arestovicha.txt");
     std::string text = clean_text(orig_text);
     std::string text_wo_space = clean_txt_wo_space(orig_text);
     auto letters = letter_freq(text);

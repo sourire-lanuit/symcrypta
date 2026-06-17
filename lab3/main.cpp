@@ -203,7 +203,7 @@ int main() {
     SetConsoleCP(CP_UTF8);
     SetConsoleOutputCP(CP_UTF8);
     
-    std::wstring ciphertext = read_file("04.txt");
+    std::wstring ciphertext = read_file("13.txt");
     
     attack_cipher(ciphertext, alph1, "Варіант 1");
     attack_cipher(ciphertext, alph2, "Варіант 2");
